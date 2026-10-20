@@ -1332,4 +1332,7 @@
     <string name="wear_os_code_hint">ペア設定コード</string>
     <string name="wear_os_done">完了</string>
     <string name="signed_by">%1$s のサイン</string>
+    <string name="addon_prefetch_header">次の曲を先読み</string>
+    <string name="addon_prefetch_subtitle">次の曲のロスレス音源を再生前に準備</string>
+    <string name="addon_prefetch_footer">再生中に次の曲をこれらのアドオンに問い合わせて冒頭をキャッシュし、数秒後に音質が切り替わるのではなく最初からロスレスで再生します。ロスレスが許可された接続でのみ動作します。追加のデータ通信とアドオンへのリクエストが発生します。</string>
 </resources>

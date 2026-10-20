@@ -1354,4 +1354,7 @@
     <string name="wear_os_code_hint">Kopplungscode</string>
     <string name="wear_os_done">Fertig</string>
     <string name="signed_by">Signiert von %1$s</string>
+    <string name="addon_prefetch_header">Nächsten Titel vorladen</string>
+    <string name="addon_prefetch_subtitle">Verlustfreie Kopie des nächsten Songs, bereit bevor er startet</string>
+    <string name="addon_prefetch_footer">Fragt diese Add-ons schon während der Wiedergabe nach dem nächsten Song und speichert seinen Anfang, damit er verlustfrei startet statt nach ein paar Sekunden die Qualität zu wechseln. Nur bei Verbindungen, die verlustfrei erlauben. Verbraucht zusätzliche Daten und Add-on-Anfragen.</string>
 </resources>

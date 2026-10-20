@@ -1293,4 +1293,7 @@
     <string name="wear_os_code_hint">Codice di associazione</string>
     <string name="wear_os_done">Fine</string>
     <string name="signed_by">Firmato da %1$s</string>
+    <string name="addon_prefetch_header">Precarica il brano successivo</string>
+    <string name="addon_prefetch_subtitle">Copia lossless del prossimo brano, pronta prima che inizi</string>
+    <string name="addon_prefetch_footer">Chiede a questi componenti il brano successivo mentre suona quello attuale e ne memorizza l’inizio, così parte in lossless invece di cambiare qualità dopo qualche secondo. Solo sulle connessioni che consentono il lossless. Usa dati e richieste aggiuntive.</string>
 </resources>

@@ -1337,4 +1337,7 @@
     <string name="wear_os_code_hint">รหัสจับคู่</string>
     <string name="wear_os_done">เสร็จสิ้น</string>
     <string name="signed_by">ลงนามโดย %1$s</string>
+    <string name="addon_prefetch_header">โหลดเพลงถัดไปล่วงหน้า</string>
+    <string name="addon_prefetch_subtitle">สำเนา lossless ของเพลงถัดไป พร้อมก่อนเริ่มเล่น</string>
+    <string name="addon_prefetch_footer">ขอเพลงถัดไปจากส่วนเสริมเหล่านี้ระหว่างที่เพลงปัจจุบันเล่นอยู่และแคชช่วงต้นไว้ เพื่อให้เริ่มเล่นแบบ lossless แทนการเปลี่ยนคุณภาพหลังผ่านไปไม่กี่วินาที ใช้เฉพาะการเชื่อมต่อที่อนุญาต lossless ใช้ข้อมูลและคำขอเพิ่มเติม</string>
 </resources>

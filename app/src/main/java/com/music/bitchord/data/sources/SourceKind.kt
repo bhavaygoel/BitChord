@@ -39,6 +39,12 @@ enum class SourceKind(
      * happens through its own read-ahead in
      * [AudioCache][com.music.bitchord.playback.AudioCache], which speaks video
      * ids directly and needs no cross-source match to find the track.
+     *
+     * False for [ADDON] too, and deliberately not the switch for addon
+     * read-ahead: how quickly an addon answers, and what asking it early
+     * costs, belongs to the server behind it rather than to the kind. That is
+     * a per-instance choice — see [SourceConfig.prefetchNext] — with its own
+     * rules, see [SourceResolver.prefetchFromAddons].
      */
     val worthPrefetching: Boolean = false,
     /**

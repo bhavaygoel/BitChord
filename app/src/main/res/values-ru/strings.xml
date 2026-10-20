@@ -1386,4 +1386,7 @@
     <string name="wear_os_code_hint">Код подключения</string>
     <string name="wear_os_done">Готово</string>
     <string name="signed_by">Подпись: %1$s</string>
+    <string name="addon_prefetch_header">Предзагрузка следующего трека</string>
+    <string name="addon_prefetch_subtitle">Lossless-копия следующей песни готова до её начала</string>
+    <string name="addon_prefetch_footer">Запрашивает у этих дополнений следующую песню, пока играет текущая, и кэширует её начало, чтобы она сразу звучала без потерь, а не меняла качество через несколько секунд. Только на подключениях, где разрешён lossless. Расходует дополнительный трафик и запросы.</string>
 </resources>

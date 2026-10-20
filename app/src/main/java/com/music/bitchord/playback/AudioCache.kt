@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheKeyFactory
@@ -26,13 +27,16 @@ import com.music.bitchord.data.sources.DeviceCodecs
 import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.data.sources.SourceRegistry
 import com.music.bitchord.data.sources.SourceResolver
+import com.music.bitchord.data.sources.SourceStream
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.download.Downloads
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -250,6 +254,7 @@ object AudioCache {
         analysisHeadsInFlight.clear()
         analysisHeadWant.clear()
         renditionKeys.clear()
+        addonLedger.clearTracks()
         scope.launch {
             cache.keys.toList().forEach { runCatching { cache.removeResource(it) } }
             _contentsChanged.value++
@@ -812,6 +817,7 @@ object AudioCache {
             }
 
             override fun open(dataSpec: DataSpec): Long {
+                notePlayerOpened(dataSpec.uri)
                 val scheme = dataSpec.uri.scheme
                 activeDs = if (scheme == "file" || scheme == "content") {
                     upstreamDs
@@ -872,6 +878,30 @@ object AudioCache {
 
     private var job: Job? = null
     private var pendingQueue: List<String> = emptyList()
+
+    /** See [NextTrackPrefetcher]; one ledger for the life of the process. */
+    private val addonLedger = AddonPrefetchLedger { SystemClock.elapsedRealtime() }
+    private val addonPrefetcher = NextTrackPrefetcher<SourceStream>(addonLedger)
+
+    /**
+     * Tracks the player itself has opened this session, by video id.
+     *
+     * From the moment it has, the player owns the track's cache entry: it may
+     * be reading cached bytes that hold no lock, or have the opening buffered
+     * in memory with the rest still to fetch. Read-ahead must then neither
+     * delete the entry nor change which stream is pinned to it, or the next
+     * read lands in a different file — see [NextTrackPrefetcher]. Recorded at
+     * [playbackFactory], which only the player and the watch use, and the
+     * watch's reads are its own entries.
+     */
+    private val playerOpened = ConcurrentHashMap<String, Long>()
+
+    private fun notePlayerOpened(uri: Uri) {
+        if (uri.scheme != "bitchord" || uri.getQueryParameter(WATCH_READ_PARAM) != null) return
+        val videoId = uri.getQueryParameter("v") ?: return
+        if (playerOpened.size > MAX_NOTED_SONGS) playerOpened.clear()
+        playerOpened[videoId] = SystemClock.elapsedRealtime()
+    }
 
     /**
      * Gets the queue ahead of the one playing warmed up, in play order.
@@ -947,6 +977,25 @@ object AudioCache {
             // reverted track resolves through YouTube, which is what it warms.
             val pinnedToYouTube = OriginalVersion.isPinned(next)
             scope.launch {
+                val watch = Uri.parse("bitchord://watch?v=$next")
+                val eligible = substitutable && target != null && !pinnedToYouTube
+                // An addon that opted in gets asked first, for the lossless
+                // copy — see [NextTrackPrefetcher]. On success the track is
+                // pinned to it and its opening is already on disk; anything
+                // else leaves things exactly as they were and the quick-source
+                // warm-up below runs as it always has.
+                val readAhead = if (eligible && !StreamChoice.substitutesRefused(next)) {
+                    delay(PREFETCH_DELAY_MS)
+                    runCatching { addonPrefetcher.prefetch(addonIo(next, target!!, watch)) }
+                        .onFailure {
+                            if (it is CancellationException) throw it
+                            TrackLog.d(TAG, "addon read-ahead failed for $next: ${it.message}", about = next)
+                        }
+                        .getOrNull()
+                        ?.also { TrackLog.d(TAG, "addon read-ahead for $next: $it", about = next) }
+                } else {
+                    null
+                }
                 // With substitution on, the *bytes* half above used to be
                 // switched off outright, and the paragraph explaining why is
                 // still correct as far as it goes: read-ahead resolving to
@@ -966,13 +1015,19 @@ object AudioCache {
                 // leaves nothing pinned, and this falls through to the same
                 // URL-only warm-up it did before — YouTube resolves the track at
                 // playback time as usual.
-                val warmed = if (substitutable && target != null && !pinnedToYouTube) {
-                    runCatching { SourceResolver.prefetchSubstitute(target) }
+                //
+                // A track that already has a pin keeps it, whoever made it: the
+                // addon above, an earlier pass of this, or playback itself.
+                // Pinning over it would hand whatever is already cached under
+                // `#alt` a different file to be continued from.
+                val pinned = StreamChoice.of(next)
+                val warmed = when {
+                    !eligible -> null
+                    pinned != null -> pinned.takeIf { StreamChoice.isSubstitute(next) }
+                    else -> runCatching { SourceResolver.prefetchSubstitute(target!!) }
                         .onFailure { TrackLog.d(TAG, "warm-up substitute failed for $next: ${it.message}", about = next) }
                         .getOrNull()
                         ?.also { StreamChoice.remember(next, it, substituted = true) }
-                } else {
-                    null
                 }
                 // Safe to fill for the same reason in both cases: either nothing
                 // outranks YouTube and read-ahead is the only writer, or a
@@ -980,9 +1035,23 @@ object AudioCache {
                 val cacheBytes = (!substitutable || warmed != null) && !pinnedToYouTube
                 if (cacheBytes) {
                     launch(TrackLog.about(next)) {
+                        if (readAhead is NextTrackPrefetcher.Outcome.Ready) {
+                            // Opening already on disk; what is left is keeping
+                            // the pin trustworthy until the track is reached.
+                            addonPrefetcher.keepFresh(addonIo(next, target!!, watch))
+                            return@launch
+                        }
                         delay(PREFETCH_DELAY_MS)
-                        fetch(next, 0, PRELOAD_BYTES)
-                        fetchWhole(next)
+                        if (warmed != null) {
+                            // A substitute's opening only, under the key
+                            // playback will read it from. [fetchWhole] speaks
+                            // YouTube's lengths and YouTube's key, neither of
+                            // which describes this file.
+                            fetch(cacheKeyOf(watch), watch, 0, PRELOAD_BYTES)
+                        } else {
+                            fetch(next, 0, PRELOAD_BYTES)
+                            fetchWhole(next)
+                        }
                     }
                 }
                 launch {
@@ -1805,9 +1874,9 @@ object AudioCache {
         position: Long,
         length: Long,
         pinKey: Boolean = false,
-    ) {
-        if (upstreamFactory == null) return
-        if (cache.getCachedBytes(cacheKey, position, length) >= length) return
+    ): Throwable? {
+        if (upstreamFactory == null) return IOException("no upstream yet")
+        if (cache.getCachedBytes(cacheKey, position, length) >= length) return null
 
         // A cheap first knock rather than the whole range on the door.
         // Losing this entry to another writer isn't something
@@ -1824,15 +1893,23 @@ object AudioCache {
         // the cost, and only a probe that actually lands is worth following
         // with the rest of the range.
         if (length > LOCK_PROBE_BYTES) {
-            pull(cacheKey, uri, position, LOCK_PROBE_BYTES, pinKey)
-            if (cache.getCachedBytes(cacheKey, position, LOCK_PROBE_BYTES) < LOCK_PROBE_BYTES) return
+            pull(cacheKey, uri, position, LOCK_PROBE_BYTES, pinKey)?.let { return it }
+            if (cache.getCachedBytes(cacheKey, position, LOCK_PROBE_BYTES) < LOCK_PROBE_BYTES) {
+                return IOException("$cacheKey is held by another writer")
+            }
         }
-        pull(cacheKey, uri, position, length, pinKey)
+        return pull(cacheKey, uri, position, length, pinKey)
     }
 
-    /** The actual network pull behind [fetch], unconditional and unchecked. */
-    private suspend fun pull(cacheKey: String, uri: Uri, position: Long, length: Long, pinKey: Boolean) {
-        val upstream = upstreamFactory ?: return
+    /**
+     * The actual network pull behind [fetch], unconditional and unchecked.
+     *
+     * @return what stopped it, or null when it ran to the end. Most callers
+     *   ignore it; addon read-ahead reads it to tell an expired URL or a rate
+     *   limit from an ordinary lost race — see [prefetchFailureOf].
+     */
+    private suspend fun pull(cacheKey: String, uri: Uri, position: Long, length: Long, pinKey: Boolean): Throwable? {
+        val upstream = upstreamFactory ?: return IOException("no upstream yet")
 
         // Whose track this is, taken off the URI rather than off [cacheKey]:
         // the key splits a track's renditions apart on purpose, and reading
@@ -1857,7 +1934,7 @@ object AudioCache {
             .build()
         val writer = CacheWriter(source, spec, /* temporaryBuffer = */ null, /* listener = */ null)
 
-        runCatching {
+        return runCatching {
             withContext(Dispatchers.IO) {
                 // CacheWriter blocks in a read loop and checks this flag between
                 // reads; cancelling the coroutine alone would leave it running.
@@ -1880,6 +1957,77 @@ object AudioCache {
                     "${SystemClock.elapsedRealtime() - fetchStart}ms",
                 about = about,
             )
+        }.exceptionOrNull()
+    }
+
+    /**
+     * [NextTrackPrefetcher]'s view of one track: the addon lookup, the pin in
+     * [StreamChoice] and the `#alt` entry under [watch]'s key.
+     */
+    private fun addonIo(next: String, target: TrackMatcher.Target, watch: Uri) =
+        object : NextTrackPrefetcher.Io<SourceStream> {
+            override val videoId = next
+
+            /** Read every time: the Atmos setting can move the key under a waiting track. */
+            private val key get() = cacheKeyOf(watch)
+
+            override suspend fun lookUp(): NextTrackPrefetcher.Lookup<SourceStream> =
+                when (val found = SourceResolver.prefetchFromAddons(target, addonLedger::coolingDown)) {
+                    is SourceResolver.AddonPrefetch.Found -> NextTrackPrefetcher.Lookup.Found(
+                        NextTrackPrefetcher.Candidate(found.stream, found.stream.format, found.stream.sourceConfigId),
+                    )
+                    SourceResolver.AddonPrefetch.Miss -> NextTrackPrefetcher.Lookup.Miss
+                    is SourceResolver.AddonPrefetch.RateLimited ->
+                        NextTrackPrefetcher.Lookup.RateLimited(found.configId, found.retryAfterMs)
+                    SourceResolver.AddonPrefetch.NotApplicable -> NextTrackPrefetcher.Lookup.NotApplicable
+                }
+
+            override fun currentPin(): SourceStream? = StreamChoice.of(next)
+
+            override fun pin(candidate: NextTrackPrefetcher.Candidate<SourceStream>) =
+                StreamChoice.remember(next, candidate.stream, substituted = true)
+
+            override fun unpin() = StreamChoice.forget(next)
+
+            override suspend fun prebuffer(bytes: Long): NextTrackPrefetcher.Prebuffered {
+                val failure = fetch(key, watch, 0, bytes)
+                // [pull] reports a cancelled read as a failure like any other;
+                // a cancelled *job* must not go on to act on it.
+                coroutineContext.ensureActive()
+                return NextTrackPrefetcher.Prebuffered(cachedBytes(), prefetchFailureOf(failure))
+            }
+
+            override fun cachedBytes(): Long =
+                cache.getCachedLength(key, 0, NextTrackPrefetcher.MAX_PREBUFFER_BYTES).coerceAtLeast(0L)
+
+            override fun discard(): Boolean = runCatching { cache.removeResource(key) }
+                .onSuccess { TrackLog.d(TAG, "discarded read-ahead entry $key", about = next) }
+                .onFailure { TrackLog.d(TAG, "read-ahead entry $key still in use: ${it.message}", about = next) }
+                .isSuccess
+
+            override fun stillWanted(): Boolean = pendingQueue.firstOrNull() == next
+
+            override fun openedByPlayer(): Boolean = playerOpened.containsKey(next)
+        }
+
+    /**
+     * What a failed read-ahead fetch means for the stream it was reading: a
+     * signed URL that has died, a CDN asking to be left alone, or neither.
+     */
+    private fun prefetchFailureOf(failure: Throwable?): NextTrackPrefetcher.FetchFailure? {
+        failure ?: return null
+        val http = generateSequence(failure) { it.cause }
+            .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
+            .firstOrNull()
+            ?: return NextTrackPrefetcher.FetchFailure.Other
+        return when (http.responseCode) {
+            401, 403, 404, 410 -> NextTrackPrefetcher.FetchFailure.Expired
+            429 -> NextTrackPrefetcher.FetchFailure.RateLimited(
+                http.headerFields.entries
+                    .firstOrNull { it.key.equals("Retry-After", ignoreCase = true) }
+                    ?.value?.firstOrNull()?.trim()?.toLongOrNull()?.times(1000),
+            )
+            else -> NextTrackPrefetcher.FetchFailure.Other
         }
     }
 }

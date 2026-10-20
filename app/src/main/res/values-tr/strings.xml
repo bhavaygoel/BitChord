@@ -1311,4 +1311,7 @@
     <string name="wear_os_code_hint">Eşleme kodu</string>
     <string name="wear_os_done">Bitti</string>
     <string name="signed_by">%1$s tarafından imzalandı</string>
+    <string name="addon_prefetch_header">Sonraki parçayı önceden yükle</string>
+    <string name="addon_prefetch_subtitle">Sonraki şarkının kayıpsız kopyası, başlamadan hazır</string>
+    <string name="addon_prefetch_footer">Mevcut şarkı çalarken bu eklentilerden sonraki şarkıyı ister ve başlangıcını önbelleğe alır; böylece birkaç saniye sonra kalite değiştirmek yerine doğrudan kayıpsız başlar. Yalnızca kayıpsıza izin verilen bağlantılarda. Ek veri ve istek kullanır.</string>
 </resources>

@@ -1324,4 +1324,14 @@
     <string name="wear_os_unsupported">安装到手表需要这部手机运行 Android 11 或更高版本。</string>
     <string name="wear_os_code_hint">配对码</string>
     <string name="wear_os_done">完成</string>
+    <string name="addon_prefetch_header">预载下一首</string>
+    <string name="addon_prefetch_subtitle">下一首歌的无损版本，在开始前准备好</string>
+    <string name="addon_prefetch_footer">在当前歌曲播放时向这些插件请求下一首，并缓存其开头，使其直接以无损开始播放，而不是几秒后再切换音质。仅在允许无损的网络下生效。会消耗额外流量和插件请求。</string>
+    <string name="artist_signatures">艺人签名</string>
+    <string name="artist_signatures_subtitle">Apple Music 没有标题标志时显示手写签名</string>
+    <string name="artist_signatures_url">签名 API 网址</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">未配置 — 点按以设置 API 网址</string>
+    <string name="artist_signatures_test_failed">无法通过该网址访问 API</string>
+    <string name="signed_by">%1$s 签名</string>
 </resources>

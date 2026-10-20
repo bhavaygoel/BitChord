@@ -1331,4 +1331,7 @@
     <string name="wear_os_code_hint">Kode pemasangan</string>
     <string name="wear_os_done">Selesai</string>
     <string name="signed_by">Ditandatangani oleh %1$s</string>
+    <string name="addon_prefetch_header">Muat lebih awal lagu berikutnya</string>
+    <string name="addon_prefetch_subtitle">Salinan lossless lagu berikutnya, siap sebelum dimulai</string>
+    <string name="addon_prefetch_footer">Meminta lagu berikutnya ke add-on ini saat lagu sekarang diputar dan menyimpan bagian awalnya, sehingga dimulai dalam lossless alih-alih berganti kualitas beberapa detik kemudian. Hanya pada koneksi yang mengizinkan lossless. Memakai data dan permintaan tambahan.</string>
 </resources>

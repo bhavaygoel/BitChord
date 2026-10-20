@@ -7,11 +7,13 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.DownloadQuality
+import com.music.bitchord.playback.StreamContainer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Turns a queued track into an openable stream, using whichever source can
@@ -332,6 +334,86 @@ object SourceResolver {
             "warmed: '${target.title}' from ${source.displayName} at ${stream.format.summary}",
         )
         return stream
+    }
+
+    /**
+     * What [prefetchFromAddons] found, in terms read-ahead can act on: a miss
+     * is remembered, a rate limit is waited out, and "not applicable" is
+     * neither.
+     */
+    sealed interface AddonPrefetch {
+        data class Found(val stream: SourceStream) : AddonPrefetch
+        data object Miss : AddonPrefetch
+        data class RateLimited(val configId: String, val retryAfterMs: Long?) : AddonPrefetch
+        data object NotApplicable : AddonPrefetch
+    }
+
+    /**
+     * The lossless copy of [target] from an addon that opted in to next-track
+     * read-ahead — see [SourceConfig.prefetchNext].
+     *
+     * Kept apart from [prefetchSubstitute] rather than folded into it, for
+     * three reasons that are all about this running speculatively:
+     *
+     *  - **Only lossless is worth pinning.** The point is to start the track on
+     *    the copy [QualityUpgrade][com.music.bitchord.playback.QualityUpgrade]
+     *    would otherwise swap in a few seconds later. An addon's lossy
+     *    settle-for is not that, and pinning one would hold the track to it.
+     *  - **Only on a connection that asks for lossless.** On a capped one the
+     *    request is not [StreamRequest.Lossless], playback would never pick a
+     *    FLAC, and spending megabytes of one ahead of time would be the opposite
+     *    of what the cap is for.
+     *  - **A busy addon is skipped, not waited on.** [AddonClient] waits out a
+     *    429 for the track being played, which is right there; here the same
+     *    wait spends a quota the playing track may need, on a track that may
+     *    be skipped. [coolingDown] carries read-ahead's own memory of that.
+     *
+     * A manifest URL is refused for the reason [PlaybackService] gives: the
+     * item is built as a progressive source before anything is resolved, and
+     * cannot be told it is getting a manifest.
+     *
+     * Never touches YouTube or anything that did not opt in, so a miss leaves
+     * the ordinary race at playback time exactly as it was.
+     */
+    suspend fun prefetchFromAddons(
+        target: TrackMatcher.Target,
+        coolingDown: (configId: String) -> Boolean = { false },
+    ): AddonPrefetch {
+        if (target.title.isBlank() || target.isVideo) return AddonPrefetch.NotApplicable
+        val request = requestForNow()
+        if (request !is StreamRequest.Lossless) return AddonPrefetch.NotApplicable
+        val active = SourceRegistry.activeForPlayback()
+        val youtube = active.firstOrNull { it.kind == SourceKind.YOUTUBE } ?: return AddonPrefetch.NotApplicable
+        val opted = rankedAbove(youtube.configId, active)
+            .filterIsInstance<AddonSource>()
+            .filter { SourceRegistry.config(it.configId)?.prefetchNext == true }
+        if (opted.isEmpty()) return AddonPrefetch.NotApplicable
+        val (ready, busy) = opted.partition { it.quietForMs() == 0L && !coolingDown(it.configId) }
+        if (ready.isEmpty()) {
+            val first = busy.first()
+            return AddonPrefetch.RateLimited(first.configId, first.quietForMs().takeIf { it > 0 })
+        }
+        val found = withTimeoutOrNull(ADDON_PREFETCH_TIMEOUT_MS) {
+            bestAcross(ready, target, request) { _, stream ->
+                (stream.format.isLossless == true || stream.format.isDolbyAtmos) &&
+                    !stream.belowRequest &&
+                    !StreamContainer.isManifest(stream.url)
+            }
+        }
+        if (found != null) {
+            val (source, stream) = found
+            TrackLog.d(TAG, "read ahead: '${target.title}' from ${source.displayName} at ${stream.format.summary}")
+            return AddonPrefetch.Found(stream)
+        }
+        // A 429 inside the lookup was waited out and then swallowed by
+        // [attempt] as an ordinary failure. The client still remembers it,
+        // which is what tells a limited addon apart from one that simply does
+        // not hold the track — and only the second is worth remembering as a
+        // miss.
+        ready.firstOrNull { it.quietForMs() > 0 }?.let {
+            return AddonPrefetch.RateLimited(it.configId, it.quietForMs())
+        }
+        return AddonPrefetch.Miss
     }
 
     /**
@@ -1194,4 +1276,11 @@ object SourceResolver {
      * much smaller would start firing on differences no one can hear.
      */
     private const val UPGRADE_MIN_GAIN_KBPS = 96
+
+    /**
+     * The most [prefetchFromAddons] waits for an addon. Generous, because the
+     * track it is for is minutes away — but bounded, so a server that never
+     * answers does not hold read-ahead's slot until the track arrives.
+     */
+    private const val ADDON_PREFETCH_TIMEOUT_MS = 30_000L
 }

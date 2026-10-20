@@ -1204,4 +1204,7 @@
     <string name="wear_os_code_hint">Pairing code</string>
     <string name="wear_os_done">Done</string>
     <string name="signed_by">Signed by %1$s</string>
+    <string name="addon_prefetch_header">Prefetch next track</string>
+    <string name="addon_prefetch_subtitle">Lossless copy of the next song, ready before it starts</string>
+    <string name="addon_prefetch_footer">Asks these addons for the next song while the current one plays and caches its opening, so it starts in lossless instead of switching quality a few seconds in. Only on connections allowed lossless. Uses extra data and addon requests.</string>
 </resources>

@@ -1326,4 +1326,7 @@
     <string name="wear_os_code_hint">Código de vinculación</string>
     <string name="wear_os_done">Hecho</string>
     <string name="signed_by">Firmado por %1$s</string>
+    <string name="addon_prefetch_header">Precargar la siguiente pista</string>
+    <string name="addon_prefetch_subtitle">Copia sin pérdida de la siguiente canción, lista antes de empezar</string>
+    <string name="addon_prefetch_footer">Pide a estos complementos la siguiente canción mientras suena la actual y guarda su inicio, para que empiece sin pérdida en lugar de cambiar de calidad a los pocos segundos. Solo en conexiones que permiten sin pérdida. Usa datos y solicitudes adicionales.</string>
 </resources>
