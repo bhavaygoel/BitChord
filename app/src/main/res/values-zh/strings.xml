@@ -1324,4 +1324,7 @@
     <string name="wear_os_unsupported">安装到手表需要这部手机运行 Android 11 或更高版本。</string>
     <string name="wear_os_code_hint">配对码</string>
     <string name="wear_os_done">完成</string>
+    <string name="addon_prefetch_header">预载下一首</string>
+    <string name="addon_prefetch_subtitle">下一首歌的无损版本，在开始前准备好</string>
+    <string name="addon_prefetch_footer">在当前歌曲播放时向这些插件请求下一首，并缓存其开头，使其直接以无损开始播放，而不是几秒后再切换音质。仅在允许无损的网络下生效。会消耗额外流量和插件请求。</string>
 </resources>

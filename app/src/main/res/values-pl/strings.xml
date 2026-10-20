@@ -1394,4 +1394,7 @@
     <string name="wear_os_code_hint">Kod parowania</string>
     <string name="wear_os_done">Gotowe</string>
     <string name="signed_by">Podpisano przez %1$s</string>
+    <string name="addon_prefetch_header">Wstępnie wczytuj następny utwór</string>
+    <string name="addon_prefetch_subtitle">Bezstratna kopia następnego utworu gotowa przed startem</string>
+    <string name="addon_prefetch_footer">Pyta te dodatki o następny utwór, gdy gra bieżący, i zapisuje jego początek, aby zaczął się bezstratnie zamiast zmieniać jakość po kilku sekundach. Tylko na połączeniach z dozwoloną jakością bezstratną. Zużywa dodatkowe dane i zapytania.</string>
 </resources>

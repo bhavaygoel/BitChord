@@ -1271,4 +1271,7 @@
     <string name="wear_os_code_hint">Mã ghép nối</string>
     <string name="wear_os_done">Xong</string>
     <string name="signed_by">Được ký bởi %1$s</string>
+    <string name="addon_prefetch_header">Tải trước bài tiếp theo</string>
+    <string name="addon_prefetch_subtitle">Bản lossless của bài kế tiếp, sẵn sàng trước khi phát</string>
+    <string name="addon_prefetch_footer">Hỏi các tiện ích này bài kế tiếp trong lúc bài hiện tại đang phát và lưu trước phần mở đầu, để bài bắt đầu ở chất lượng lossless thay vì đổi chất lượng sau vài giây. Chỉ trên kết nối cho phép lossless. Tốn thêm dữ liệu và yêu cầu.</string>
 </resources>

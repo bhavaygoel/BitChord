@@ -66,6 +66,15 @@ class AddonClient(rawBaseUrl: String) {
     @Volatile
     private var quietUntilMs = 0L
 
+    /**
+     * How much longer this addon asked to be left alone, or 0 when it hasn't.
+     *
+     * For callers that would rather not ask at all than wait — speculative
+     * read-ahead, whose request would otherwise sit out the limiter's quiet
+     * period only to spend the quota the track actually being played needs.
+     */
+    fun quietForMs(): Long = (quietUntilMs - System.currentTimeMillis()).coerceAtLeast(0L)
+
     // ── Manifest ──────────────────────────────────────────────────────────
 
     /**

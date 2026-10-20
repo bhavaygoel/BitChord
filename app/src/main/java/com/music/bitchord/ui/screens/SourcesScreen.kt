@@ -352,6 +352,38 @@ fun SourcesScreen(
             onDisconnect = { AppSettings.clearSmb() },
         )
 
+        // Opt-in, per addon: asking a server about the *next* track while this
+        // one plays is speculative work whose cost only the person who added
+        // the server can judge — see [SourceConfig.prefetchNext].
+        val prefetchable = configs.filter { it.kind == SourceKind.ADDON && it.isComplete }
+        if (prefetchable.isNotEmpty()) {
+            SettingsGroup(
+                header = stringResource(R.string.addon_prefetch_header),
+                footer = stringResource(R.string.addon_prefetch_footer),
+            ) {
+                prefetchable.forEachIndexed { index, config ->
+                    if (index > 0) RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.Extension,
+                        title = config.displayName,
+                        subtitle = stringResource(R.string.addon_prefetch_subtitle),
+                        enabled = config.enabled,
+                        trailing = {
+                            Switch(
+                                checked = config.prefetchNext,
+                                enabled = config.enabled,
+                                onCheckedChange = { SourceRegistry.setPrefetchNext(config.id, it) },
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                    )
+                }
+            }
+        }
+
         SettingsGroup(
             header = stringResource(R.string.source_matching),
             footer = stringResource(R.string.upgrade_length_slack_footer),

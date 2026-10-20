@@ -1324,4 +1324,7 @@
     <string name="wear_os_code_hint">配對碼</string>
     <string name="wear_os_done">完成</string>
     <string name="spotify_use_spdc_token">使用 sp_dc 權杖</string>
+    <string name="addon_prefetch_header">預載下一首</string>
+    <string name="addon_prefetch_subtitle">下一首歌的無損版本，在開始前準備好</string>
+    <string name="addon_prefetch_footer">在目前歌曲播放時向這些外掛請求下一首，並快取其開頭，使其直接以無損開始播放，而不是幾秒後再切換音質。僅在允許無損的網路下生效。會消耗額外流量與外掛請求。</string>
 </resources>

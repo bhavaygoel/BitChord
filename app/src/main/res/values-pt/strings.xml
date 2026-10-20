@@ -1359,4 +1359,7 @@
     <string name="wear_os_code_hint">Código de pareamento</string>
     <string name="wear_os_done">Concluir</string>
     <string name="signed_by">Assinado por %1$s</string>
+    <string name="addon_prefetch_header">Pré-carregar a próxima faixa</string>
+    <string name="addon_prefetch_subtitle">Cópia sem perdas da próxima música, pronta antes de começar</string>
+    <string name="addon_prefetch_footer">Pede a próxima música a estes complementos enquanto a atual toca e guarda o início dela, para que comece sem perdas em vez de trocar de qualidade alguns segundos depois. Apenas em conexões que permitem sem perdas. Usa dados e solicitações extras.</string>
 </resources>

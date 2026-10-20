@@ -51,14 +51,36 @@ data class SourceConfig(
      * already break that. Refreshed whenever the manifest is next read.
      */
     val checkValidLossless: Boolean = false,
+    /**
+     * Whether this addon is asked for the *next* track's lossless copy while
+     * the current one plays, so that track starts on it instead of on YouTube's
+     * Opus with a swap a few seconds in.
+     *
+     * Per addon and off by default, rather than a property of [SourceKind]:
+     * every lookup this makes is speculative, and what one costs depends
+     * entirely on the server behind it — a debrid-backed addon answers in a
+     * second and rate-limits, a module-backed one takes ten. Only the person
+     * who added it knows which they have. See
+     * [AudioCache.prefetchQueue][com.music.bitchord.playback.AudioCache.prefetchQueue].
+     */
+    val prefetchNext: Boolean = false,
 ) {
     /** Whether this source is shut out right now because it needs an output that isn't connected. */
     val awaitsLosslessOutput: Boolean
         get() = checkValidLossless && !LosslessOutput.capable
 
-    /** The two manifest switches, without the parts of the config the user set. */
+    /**
+     * The switches a source reads live from the registry, taken from [other]:
+     * the two manifest ones and [prefetchNext]. None of them changes where the
+     * source points, so flipping one must not rebuild a warm instance — that
+     * would also throw away its client's memory of being rate limited.
+     */
     internal fun withPolicyOf(other: SourceConfig) =
-        copy(allowDownloads = other.allowDownloads, checkValidLossless = other.checkValidLossless)
+        copy(
+            allowDownloads = other.allowDownloads,
+            checkValidLossless = other.checkValidLossless,
+            prefetchNext = other.prefetchNext,
+        )
 
     /** What the sources screen and the player show. Never blank. */
     val displayName: String
@@ -306,6 +328,16 @@ object SourceRegistry {
     fun setEnabled(configId: String, enabled: Boolean) {
         if (!enabled && config(configId)?.kind == SourceKind.YOUTUBE) return
         publish(configs.value.map { if (it.id == configId) it.copy(enabled = enabled) else it })
+    }
+
+    /**
+     * Turns next-track read-ahead on or off for one addon — see
+     * [SourceConfig.prefetchNext]. Only an addon can opt in: it is the one kind
+     * whose cost is the user's to judge.
+     */
+    fun setPrefetchNext(configId: String, enabled: Boolean) {
+        if (config(configId)?.kind != SourceKind.ADDON) return
+        publish(configs.value.map { if (it.id == configId) it.copy(prefetchNext = enabled) else it })
     }
 
     /**

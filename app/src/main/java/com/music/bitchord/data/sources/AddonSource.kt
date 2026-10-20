@@ -40,6 +40,9 @@ class AddonSource(
 
     private val client = AddonClient(config.baseUrl)
 
+    /** See [AddonClient.quietForMs]. */
+    fun quietForMs(): Long = client.quietForMs()
+
     /**
      * Rows this addon has recently handed over, by their own track id.
      *

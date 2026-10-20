@@ -49,7 +49,16 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object StreamChoice {
 
-    private class Choice(val stream: SourceStream, val at: Long, val substituted: Boolean)
+    /**
+     * [at] is when the choice was last relied on, [since] when it was made.
+     * The first slides with use, the second never moves — see [MAX_AGE_MS].
+     */
+    private class Choice(
+        val stream: SourceStream,
+        @Volatile var at: Long,
+        val substituted: Boolean,
+        val since: Long = at,
+    )
 
     private val chosen = ConcurrentHashMap<String, Choice>()
 
@@ -60,12 +69,22 @@ object StreamChoice {
      */
     fun of(videoId: String): SourceStream? {
         val choice = chosen[videoId] ?: return null
-        if (SystemClock.elapsedRealtime() - choice.at > TTL_MS) {
+        val now = SystemClock.elapsedRealtime()
+        if (expired(choice, now)) {
             chosen.remove(videoId)
             return null
         }
+        // Every read that is honoured renews the lease. A choice made by
+        // read-ahead is minutes old before its track is even reached, and a
+        // fixed fifteen minutes from *then* could run out under a long track
+        // still being played from it — at which point the continuation fetch
+        // would race afresh into a half-filled entry.
+        choice.at = now
         return choice.stream
     }
+
+    private fun expired(choice: Choice, now: Long) =
+        now - choice.at > TTL_MS || now - choice.since > MAX_AGE_MS
 
     /**
      * Records [stream] as the one copy of [videoId] this play is reading.
@@ -92,7 +111,7 @@ object StreamChoice {
             // pin, so a promise can outlive several other tracks' worth of
             // entries, and the blunt version became reachable.
             val now = SystemClock.elapsedRealtime()
-            chosen.entries.removeIf { now - it.value.at > TTL_MS }
+            chosen.entries.removeIf { expired(it.value, now) }
             if (chosen.size >= MAX_REMEMBERED) {
                 chosen.minByOrNull { it.value.at }?.let { chosen.remove(it.key) }
             }
@@ -174,8 +193,14 @@ object StreamChoice {
         return false
     }
 
-    /** Long enough to outlast any one play, far short of any signed URL's life. */
+    /** How long a choice nothing has read stays trusted. */
     private const val TTL_MS = 15 * 60 * 1000L
+
+    /**
+     * The most any one choice is trusted for, however busily it is read.
+     * Long enough to outlast any one play, far short of any signed URL's life.
+     */
+    private const val MAX_AGE_MS = 45 * 60 * 1000L
 
     /**
      * How long a track stays off substitution after one broke it.

@@ -1359,4 +1359,7 @@
     <string name="wear_os_code_hint">קוד צימוד</string>
     <string name="wear_os_done">סיום</string>
     <string name="signed_by">נחתם על ידי %1$s</string>
+    <string name="addon_prefetch_header">טעינה מוקדמת של הרצועה הבאה</string>
+    <string name="addon_prefetch_subtitle">עותק ללא אובדן של השיר הבא, מוכן לפני שהוא מתחיל</string>
+    <string name="addon_prefetch_footer">מבקש מהתוספים האלה את השיר הבא בזמן שהנוכחי מתנגן ושומר את תחילתו, כך שהוא מתחיל ללא אובדן במקום להחליף איכות אחרי כמה שניות. רק בחיבורים שמותר בהם ללא אובדן. צורך נתונים ובקשות נוספים.</string>
 </resources>
